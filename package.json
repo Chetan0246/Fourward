@@ -1,0 +1,8 @@
+{
+  "name": "signal-at-blackwater",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A real-time cooperative lighthouse mystery game",
+  "scripts": { "start": "node story-server.js" },
+  "engines": { "node": ">=20" }
+}
