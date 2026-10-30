@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#111c20"><meta name="description" content="A cooperative lighthouse mystery for 2–4 players."><title>Signal at Blackwater — A team mystery</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet"><link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="grain"></div>
+<div class="shell">
+  <header class="topbar"><a class="brand" href="/"><span class="brand-icon">✳</span><span>BLACKWATER <small>CASE FILE 07</small></span></a><div class="weather"><span class="weather-dot"></span> STORM WARNING <span class="weather-time">23:17</span></div><button id="rulesOpen" class="rules-button">CASE BRIEF <span>↗</span></button></header>
+  <main id="homeScreen" class="home-screen">
+    <div class="home-copy"><p class="eyebrow"><span>THE BLACKWATER LIGHTHOUSE</span><span>—</span><span>2–4 INVESTIGATORS</span></p><h1>The light went out.<br><em>Someone knows why.</em></h1><p class="intro">A cutter is lost in the storm. Keeper Mara Venn has vanished. Find her trail, restore the beacon, and bring the ship home — together.</p>
+      <div class="launch-card"><label for="playerName">YOUR CALLSIGN</label><input id="playerName" maxlength="20" placeholder="Enter your name" autocomplete="nickname"><button class="primary-button" id="createRoom">Open a new case <span>↗</span></button><div class="join-divider"><span>OR JOIN YOUR TEAM</span></div><div class="join-row"><input id="roomCode" maxlength="6" placeholder="CASE CODE" aria-label="Case code"><button id="joinRoom" class="join-button">JOIN <span>→</span></button></div><p id="homeError" class="form-error" role="alert"></p></div>
+    </div>
+    <div class="home-visual"><div class="weather-label">BLACKWATER ISLAND · 03:17 AM</div><div class="lighthouse-scene"><div class="moon"></div><div class="beam"></div><div class="sea sea-one"></div><div class="sea sea-two"></div><div class="island"></div><div class="tower"><div class="tower-cap"></div><div class="lamp-window"></div><div class="tower-body"></div><div class="tower-base"></div></div><div class="scene-fog"></div></div><div class="visual-note"><span>“I have the channel. I have the bearing.</span><br><span>Now somebody find the power.”</span><small>— LAST TRANSMISSION, 03:14</small></div><div class="home-stamp"><b>4</b><span>LINKED<br>PUZZLES</span></div></div>
+  </main>
+  <main id="lobbyScreen" class="lobby-screen hidden">
+    <div class="lobby-card"><p class="eyebrow">THE CASE IS READY</p><h1>Bring your<br><em>people in.</em></h1><p class="intro">This mystery needs a team of at least two. Share the case link; up to four investigators can join.</p><div class="invite-panel"><small>YOUR CASE CODE</small><strong id="lobbyCode">------</strong><button id="copyInviteLobby">COPY INVITE LINK ↗</button></div><div id="lobbyPlayers" class="lobby-players"></div><p class="waiting-note" id="waitingNote"><i></i> Waiting for another investigator…</p><button id="leaveLobby" class="quiet-button">← Back to case desk</button></div>
+    <aside class="brief-card"><p class="eyebrow">THE BRIEF</p><h2>One storm.<br>One missing keeper.<br>One chance to signal.</h2><p>At 03:17, the Blackwater beacon went dark. A cutter is approaching the island through heavy weather. Keeper Mara Venn left clues across the station, but no single note tells the whole story.</p><div class="brief-rule"><span>YOUR OBJECTIVE</span><b>Reconstruct Mara’s final signal and relight the beacon.</b></div><div class="brief-rule"><span>HOW TO WIN</span><b>Work through four locations. Share evidence. Solve the final control sequence.</b></div></aside>
+  </main>
+  <main id="gameScreen" class="game-screen hidden">
+    <section class="game-heading"><div class="heading-left"><p class="eyebrow"><span>CASE 07</span><span>·</span><span id="clockLabel">THE STORM IS CLOSING IN</span></p><h1>Signal at<br><em>Blackwater.</em></h1></div><div class="objective-card"><span class="objective-icon">◎</span><div><small>TEAM OBJECTIVE</small><strong id="objectiveText">Decode the radio call and find the cutter’s channel.</strong></div></div></section>
+    <div class="game-toolbar"><button class="quiet-button" id="leaveGame">← CASE DESK</button><div class="case-share"><span>CASE</span><b id="gameCode">------</b><button id="copyInvite">COPY LINK ↗</button></div><div id="liveStatus" class="live-status"><i></i> SYNCING</div></div>
+    <div class="workspace">
+      <section class="investigation">
+        <nav id="locationNav" class="location-nav" aria-label="Investigation locations"></nav>
+        <div id="sceneCard" class="scene-card"></div>
+        <div class="evidence-section"><div class="section-head"><div><p class="eyebrow">EVIDENCE BOARD</p><h2>What we’ve found <span id="evidenceCount">0 / 2</span></h2></div><span class="sync-label">SHARED WITH TEAM</span></div><div id="evidenceGrid" class="evidence-grid"></div></div>
+        <div id="puzzlePanel" class="puzzle-panel"></div>
+      </section>
+      <aside class="team-sidebar">
+        <section class="sidebar-panel team-panel"><div class="side-head"><div><p class="eyebrow">YOUR CREW</p><h3>On the case <span id="playerCount">0/4</span></h3></div><span class="connection-led"></span></div><div id="teamList" class="team-list"></div></section>
+        <section class="sidebar-panel journal-panel"><div class="side-head"><div><p class="eyebrow">CASE JOURNAL</p><h3>Team activity</h3></div><span class="journal-count" id="activityCount">0</span></div><div id="activityFeed" class="activity-feed"></div></section>
+        <section class="sidebar-panel chat-panel"><div class="side-head"><div><p class="eyebrow">OPEN CHANNEL</p><h3>Team notes</h3></div><span class="chat-live">LIVE</span></div><div id="chatMessages" class="chat-messages"></div><form id="chatForm" class="chat-form"><input id="chatInput" maxlength="300" placeholder="Share a thought…" autocomplete="off" aria-label="Team message"><button aria-label="Send message">↑</button></form></section>
+      </aside>
+    </div>
+    <section id="victoryPanel" class="victory-panel hidden"></section>
+  </main>
+  <footer><span>BLACKWATER LIGHTHOUSE · 2026</span><span>TRUST THE CLUES. TRUST YOUR TEAM.</span><span class="footer-mark">◉</span></footer>
+</div>
+<dialog id="rulesDialog"><button id="rulesClose" class="dialog-close" aria-label="Close">×</button><p class="eyebrow">CASE BRIEF · READ TOGETHER</p><h2>One team.<br><em>Four linked locks.</em></h2><p>Work together to reconstruct Keeper Mara’s last signal before the cutter reaches the rocks.</p><ol><li><b>01</b><span>Inspect every evidence card in the current location. Each discovery is shared with the team.</span></li><li><b>02</b><span>Discuss what you find in Team Notes. Any investigator can submit the team’s answer.</span></li><li><b>03</b><span>Solve each location to unlock the next. Your eight shared insight points can reveal up to eight hints.</span></li><li><b>04</b><span>Combine the channel, bearing, and fuse order in the Lantern Gallery to guide the cutter home.</span></li></ol><p class="dialog-foot">Two to four players · no outside help required</p></dialog>
+<div id="toast" class="toast" role="status"></div>
+<script src="/app.js"></script>
+</body>
+</html>
