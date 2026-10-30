@@ -5,7 +5,8 @@ let playerId = localStorage.getItem(idKey);
 if (!playerId) { playerId = crypto.randomUUID(); localStorage.setItem(idKey, playerId); }
 $('playerName').value = localStorage.getItem(nameKey) || '';
 $('roomCode').value = new URL(location.href).searchParams.get('case') || '';
-let state = null, currentCode = null, selectedStage = 'radio', eventStream = null, pingTimer = null, toastTimer = null;
+let state = null, currentCode = null, selectedStage = 'radio', pollTimer = null, pingTimer = null, toastTimer = null;
+const GAME_API = '/.netlify/functions/game';
 const stageData = [
   { id:'radio', name:'Radio shack', number:'01', atmosphere:'The air tastes of salt and hot dust. A receiver coughs up one last burst of static.', objective:'Decode the radio call and find the cutter’s channel.', puzzle:'What single word does the recording spell? Enter the cutter’s channel as a word.', prompt:'The channel is hidden in a short, grouped signal.', button:'DECODE SIGNAL' },
   { id:'chart', name:'Chart room', number:'02', atmosphere:'Charts are pinned over every wall. One corner has been circled so hard the paper nearly tore.', objective:'Use Mara’s chart key to identify the safe bearing.', puzzle:'Translate the four numbers using the atlas key. Which direction should the cutter take?', prompt:'The numbers each represent one letter.', button:'SET BEARING' },
@@ -26,22 +27,23 @@ function escapeHtml(text){return String(text).replace(/[&<>"']/g,c=>({'&':'&amp;
 function name(){return $('playerName').value.trim().slice(0,20)||'Guest';}
 function codeFromUrl(){return (new URL(location.href).searchParams.get('case')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);}
 function showToast(message){const el=$('toast');el.textContent=message;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2300);}
-async function post(path,body){const response=await fetch(path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});const data=await response.json();if(!response.ok)throw new Error(data.error||'The action could not be completed.');return data;}
+async function post(body){const response=await fetch(GAME_API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});const data=await response.json();if(!response.ok)throw new Error(data.error||'The action could not be completed.');return data;}
+async function getRoom(code){const query=new URLSearchParams({code,playerId});const response=await fetch(GAME_API+'?'+query,{cache:'no-store'});const data=await response.json();if(!response.ok)throw new Error(data.error||'The case could not be refreshed.');return data;}
 async function joinCase(code,create=false){
   code=code.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
   if(code.length!==6){$('homeError').textContent='Enter the six-letter case code.';return;}
   localStorage.setItem(nameKey,name());
-  try{await post('/api/rooms/'+code,{action:'join',playerId,name:name(),create});startRoom(code);}
+  try{const result=await post({code,action:'join',playerId,name:name(),create});startRoom(code,result.room);}
   catch(error){$('homeError').textContent=error.message;}
 }
 function randomCode(){const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';return Array.from({length:6},()=>chars[Math.floor(Math.random()*chars.length)]).join('');}
-function startRoom(code){
-  currentCode=code;const url=new URL(location.href);url.searchParams.set('case',code);history.pushState({case:code},'',url);$('gameCode').textContent=code;$('lobbyCode').textContent=code;
-  eventStream?.close();eventStream=new EventSource('/api/rooms/'+code+'/events?player='+encodeURIComponent(playerId));
-  $('liveStatus').innerHTML='<i></i> CONNECTING';eventStream.onopen=()=>{$('liveStatus').innerHTML='<i></i> LIVE'};
-  eventStream.onerror=()=>{$('liveStatus').innerHTML='<i class="offline"></i> RECONNECTING'};
-  eventStream.onmessage=(event)=>{try{state=JSON.parse(event.data);render();}catch{}};
-  clearInterval(pingTimer);pingTimer=setInterval(()=>{if(currentCode)post('/api/rooms/'+currentCode,{action:'ping',playerId}).catch(()=>{});},6000);
+function startRoom(code,initialRoom){
+  currentCode=code;state=initialRoom||state;const url=new URL(location.href);url.searchParams.set('case',code);history.pushState({case:code},'',url);$('gameCode').textContent=code;$('lobbyCode').textContent=code;
+  $('liveStatus').innerHTML='<i></i> CONNECTING';render();
+  let refreshing=false;
+  const refresh=async()=>{if(refreshing||currentCode!==code)return;refreshing=true;try{const result=await getRoom(code);state=result.room;$('liveStatus').innerHTML='<i></i> LIVE';render();}catch{$('liveStatus').innerHTML='<i class="offline"></i> RECONNECTING';}finally{refreshing=false;}};
+  clearInterval(pollTimer);pollTimer=setInterval(refresh,2200);refresh();
+  clearInterval(pingTimer);pingTimer=setInterval(()=>{if(currentCode===code)post({code,action:'ping',playerId}).then(result=>{if(result.room){state=result.room;render();}}).catch(()=>{});},6000);
 }
 function activeStage(){return stageData.find(s=>s.id===selectedStage)||stageData[0];}
 function render(){
@@ -70,11 +72,11 @@ function renderGame(){
   document.querySelectorAll('.inspect-button').forEach(button=>button.onclick=()=>act({action:'inspect',stage:stage.id,clue:button.dataset.clue}));
   const allFound=foundCount===stageClues.length, hints=state.revealedHints[stage.id]||[];
   $('puzzlePanel').innerHTML='<div class="puzzle-top"><div><p class="eyebrow">'+(solved?'PUZZLE SOLVED':'TEAM PUZZLE')+' · '+stage.number+'</p><h2>'+(solved?'The lock is open.':stage.puzzle)+'</h2><p>'+stage.prompt+'</p></div><div class="puzzle-lock '+(solved?'open':'')+'">'+(solved?'✓':'⌑')+'</div></div>'+(allFound?'<form id="answerForm" class="answer-form"><input id="answerInput" maxlength="32" autocomplete="off" placeholder="'+(stage.id==='engine'?'Four digits':stage.id==='lantern'?'Bearing-channel-fuses':'Your answer')+'" aria-label="Puzzle answer" '+(solved?'disabled':'')+'><button '+(solved?'disabled':'')+'>'+(solved?'SOLVED ✓':stage.button+' ↗')+'</button></form>':'<div class="locked-puzzle">Examine both evidence cards to compare the clues and unlock the answer box.</div>')+'<div class="hint-row"><button id="hintButton" class="hint-button" '+(!allFound||solved||hints.length>=3||state.hintsLeft<=0?'disabled':'')+'>REVEAL NEXT HINT <span>−1 INSIGHT</span></button><span class="insight-count">TEAM INSIGHT <b>'+state.hintsLeft+'</b> / 8</span></div>'+(hints.length?'<div class="hint-list">'+hints.map((hint,i)=>'<p><b>HINT '+(i+1)+'</b>'+escapeHtml(hint)+'</p>').join('')+'</div>':'');
-  $('answerForm')?.addEventListener('submit',async e=>{e.preventDefault();const answer=$('answerInput').value;try{const result=await post('/api/rooms/'+currentCode,{action:'solve',playerId,stage:stage.id,answer});if(!result.correct)showToast(result.message);else{selectedStage=stageData[Math.min(index+1,stageData.length-1)].id;renderGame();showToast(index===3?'The signal is away. The cutter is safe.':'Puzzle solved — the next location is open.');}}catch(error){showToast(error.message);}});
+  $('answerForm')?.addEventListener('submit',async e=>{e.preventDefault();const answer=$('answerInput').value;try{const result=await post({code:currentCode,action:'solve',playerId,stage:stage.id,answer});if(result.room){state=result.room;render();}if(!result.correct)showToast(result.message);else{selectedStage=stageData[Math.min(index+1,stageData.length-1)].id;renderGame();showToast(index===3?'The signal is away. The cutter is safe.':'Puzzle solved — the next location is open.');}}catch(error){showToast(error.message);}});
   $('hintButton')?.addEventListener('click',()=>act({action:'hint',stage:stage.id}));
   renderTeam();renderActivity();renderChat();
   $('victoryPanel').classList.toggle('hidden',state.status!=='won');
-  if(state.status==='won')$('victoryPanel').innerHTML='<div class="victory-icon">✳</div><p class="eyebrow">CASE CLOSED · TEAM SUCCESS</p><h2>She kept the light.<br><em>You brought it back.</em></h2><p>The cutter answers with two long horn blasts. In the lantern room, Mara’s final log explains everything: she stayed through the storm to guide the crew safely home.</p><div class="victory-team">'+state.players.map(p=>'<span>'+escapeHtml(p.name)+'</span>').join('<i>✦</i>')+'</div>';
+  if(state.status==='won')$('victoryPanel').innerHTML='<div class="victory-icon">✳</div><p class="eyebrow">CASE CLOSED · TEAM SUCCESS</p><h2>She kept the light.<br><em>You brought it back.</em></h2><p>The cutter answers with two long horn blasts. In the lantern room, Mara’s final log explains everything: she stayed through the storm to guide the crew safely home.</p><p class="victory-score">THREE ROUNDS · '+state.roundsCompleted+'/3 · '+state.score+' TEAM POINTS</p><p class="victory-winner">WINNER · '+escapeHtml(state.winner||'The Blackwater Crew')+'</p><div class="victory-team">'+state.players.map(p=>'<span>'+escapeHtml(p.name)+'</span>').join('<i>✦</i>')+'</div>';
 }
 function renderTeam(){
   $('playerCount').textContent=state.players.length+'/4';
@@ -89,11 +91,11 @@ function renderChat(){
   box.innerHTML=state.chat.map(message=>'<div class="chat-message '+(message.playerId===playerId?'own':'')+'"><b>'+escapeHtml(message.name)+'</b><p>'+escapeHtml(message.text)+'</p></div>').join('')||'<p class="empty-note">Share theories, compare clues, and keep the team together.</p>';
   if(wasBottom)box.scrollTop=box.scrollHeight;
 }
-async function act(payload){try{await post('/api/rooms/'+currentCode,{...payload,playerId});}catch(error){showToast(error.message);}}
+async function act(payload){try{const result=await post({code:currentCode,...payload,playerId});if(result.room){state=result.room;render();}}catch(error){showToast(error.message);}}
 async function copyInvite(){try{await navigator.clipboard.writeText(location.origin+'/?case='+currentCode);showToast('Case link copied for your team.');}catch{showToast('Share case code '+currentCode);}}
 async function leaveCase(){
-  const code=currentCode;eventStream?.close();eventStream=null;clearInterval(pingTimer);pingTimer=null;
-  if(code)try{await post('/api/rooms/'+code+'/leave',{playerId});}catch{}
+  const code=currentCode;clearInterval(pollTimer);pollTimer=null;clearInterval(pingTimer);pingTimer=null;
+  if(code)try{await post({code,action:'leave',playerId});}catch{}
   state=null;currentCode=null;const url=new URL(location.href);url.searchParams.delete('case');history.pushState({},'',url);gameScreen.classList.add('hidden');lobbyScreen.classList.add('hidden');homeScreen.classList.remove('hidden');
 }
 $('createRoom').onclick=()=>joinCase(randomCode(),true);
@@ -108,4 +110,5 @@ $('rulesDialog').addEventListener('click',e=>{if(e.target===$('rulesDialog'))$('
 $('chatForm').addEventListener('submit',async e=>{e.preventDefault();const input=$('chatInput'),message=input.value.trim();if(!message)return;input.value='';await act({action:'chat',message});});
 window.addEventListener('popstate',()=>{const code=codeFromUrl();if(code&&!currentCode){if($('playerName').value.trim())joinCase(code,false);else $('roomCode').value=code;}else if(!code&&currentCode)leaveCase();});
 const initialCode=codeFromUrl();if(initialCode){$('roomCode').value=initialCode;if(localStorage.getItem(nameKey))joinCase(initialCode,false);else $('homeError').textContent='Your team saved you a seat. Add your callsign to join.';}
+
 
